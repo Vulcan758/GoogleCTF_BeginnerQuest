@@ -1,0 +1,401 @@
+https://secuweb-web.2024-bq.ctfcompetition.com
+
+This website is labelled as the worlds most secure website. They have an example login
+credential guest:guest. Theres no sign up page. On the home screen theres a note posted by
+the admin saying, "We recently fixed a bug where users who weren't logged in would be able
+to view the profile page of any user on the site. Let us know if the fix causes any 
+problems.". On the home page theres also a bunch articles under a News heading. After
+viewing the source of the home page I saw that urls for those pages were directing to 
+/new/1 all the way till /new/7. Only the /new/6 was not there which told me that there 
+might something in /new/6 and after going in there was a flag on 
+
+https://secuweb-web.2024-bq.ctfcompetition.com/news/6
+
+CTF{DeletedButN0tG0n3}
+
+The website also has /profile page and the directory following that was guest, so it was 
+basically /profile/guest so I assume the format follows as /profile/user. Given there was
+already a user named admin I tried accesing the /profile/admin which had a flag.
+
+https://secuweb-web.2024-bq.ctfcompetition.com/profile/admin
+
+CTF{WhatDoesIDORMean?}
+
+On the website theres seems to be a /send page that is meant to "Send secret message". In 
+the page theres a place to enter the username to send the message, the input for the message
+and a secret ID. When the secret ID is clicked to display one of the IDs appear to be:
+
+0fa199bac11f45fa5a544f8fad31019fada12c2394a45ba7be88604a1017a63d
+
+After viewing the source I see that there is some javascript that generates a SHA3-256 hash.
+This hash is applied to the secret ID. Judging from te secretID field it seems that the hashes
+are generated from a single value "1234" all the time. I can test this out on cyberchef by
+generating a 1234 hash on the sha3 256 algorithm.
+
+1d6442ddcfd9db1ff81df77cbefcd5afcc8c7ca952ab3101ede17a84b866d3f3
+
+this is the output. This doesnt match because I reloaded the page and clicked on the display
+secret ID which gave me a new hashed number. This was not hash(1234) but a hash of another
+number. Currently the hashed number is 1246 according to the viewed page source:
+
+82c0601da343ae5e34edeff821c869e7b1106c4fa354736cff1cfa7fbe02ba16
+
+After trying with cyberchef I get:
+
+43065d19127ac71dfdd495ef9baebdbb0f55336f10431b077d6b6329edbd38d1
+
+This doesnt match with the viewed source because when I viewed it the hashed number changed
+so the actual number that was hashed was actually 1245 which is:
+
+82c0601da343ae5e34edeff821c869e7b1106c4fa354736cff1cfa7fbe02ba16
+
+The submit id according to the sourced ID is disabled on html. I can bypass this by inspecting
+After bypassing and submitting, I am greeted with a Forbidden page:
+
+"""
+Forbidden
+
+You don't have the permission to access the requested resource. It is either read-protected 
+or not readable by the server.
+"""
+
+There seems to be set cookies. The cookie I have right now is a session cookie (N.B. none 
+of these have a \n seperating them):
+
+session=.eJwlzjkSAjEMBMC_OCbQZdnez2z5kBYCkj0iir9joCaaqQn6FVbf7biH5dwvu4X1McISXIg7DyDVRg
+WpJK-1EcT6nS0jDGmcqmllEI7GuSOASnROHWl-krbsMyCOYMjDZQj0kaFoKayeW88KAkXcqThSNXBMDA0tTMjz2H4Yp
+EizXoftf9x22XGG9wcboTSe.ZsT6sw.-YMzYv6RFXW3A_ZlXfzu7vBu38Y
+
+It seems after I refresh, the cookie changes:
+
+session=.eJwlzjkSAjEMBMC_OCbQZdnez2z5kBYCkj0iir9joCaaqQn6FVbf7biH5dwvu4X1McISXIg7DyDVRg
+WpJK-1EcT6nS0jDGmcqmllEI7GuSOASnROHWl-krbsMyCOYMjDZQj0kaFoKayeW88KAkXcqThSNXBMDA0tTMjz2H4Yp
+MizXoftf9x22XGG9wcbtjSf.ZsT7pQ.iEAUzylfm5tL3Ip61OX6e7KB-X4
+
+after refreshing once more, the cookie changes again:
+
+session=.eJwlzjkSAjEMBMC_OCbQZdnez2z5kBYCkj0iir9joCaaqQn6FVbf7biH5dwvu4X1McISXIg7DyDVRg
+WpJK-1EcT6nS0jDGmcqmllEI7GuSOASnROHWl-krbsMyCOYMjDZQj0kaFoKayeW88KAkXcqThSNXBMDA0tTMjz2H4Yp
+CizXoftf9x22XGG9wcbyzSg.ZsT8Rw.rop3Pu9aFMK2Ae-5i_iYTg8Wk9U
+
+Analyzing them I see that for the most part they look the same but the last bit changes.
+I assume this might be related to the changed secretID after its hashed but I dont know for
+sure. Looking at burp whenever I refresh the /send a a file of what seems to be javascript
+gets executed. The file is located at /static/js-sha3. So it goes that whenever a GET 
+request is sent to /send, another following GET request is sent to /static/js-sha3. I 
+assume this is part of what encrypts the secret ID but theres already javascript for it
+on the /send page. I download the /static/js-sha3 file by going to that url direclly.
+
+Another thing is that on the source viewed /send page there is a message from the dev
+saying:
+
+"""
+FIXME: Hack to show people what the secret ID will be after they send their message. It _usually_
+works, but sometimes it doesn't, if someone takes too long to write their message.
+The real way to fix this is to better explain that they need to actually finish writing
+their message before they can get the link.
+If they really need the link inside the message, for some reason, we should just add
+the ability to edit a message after saving it.
+"""
+
+I dont quite understand what this means yet.
+
+While going through the website, I found that on one of news articles /new/7, there
+was a url to a secret message:
+
+/message/67b176705b46206614219f47a05aee7ae6a3edbe850bbbe214c536b989aea4d2
+
+the page reads:
+
+"""
+Secret message example
+From: admin
+
+Our servers support sending secret messages between users.
+
+Using state-of-the-art, SHA3-256 encryption, we ensure that only the 
+intended recipient can ever access your messages.
+
+Even better, because our technology is so safe, you can use it to send messages to 
+people who don't even have accounts on the site. Simply write your message and copy 
+the sharing link. Anyone with that can read the message, but no one would be able to 
+guess it, even if they had a powerful supercomputer.
+"""
+
+The above url looks like one of those encrypted sha3 hashes. Maybe I can try to
+match and see which number it matches to. Judging from the hashed inputs on the 
+secret IDit looks as though the hashed numbers have to be 4 digits (0000 to 9999).
+
+So after making a script that does that matches the numbers I found that the 
+hashed text on the url matches with the number 1. This tells me that there may 
+be more secret messages with different hashed values. This worked doing it with
+hashed numbers 2, 3, etc. There was one that seemed to be inaccessible. I tried 
+to access the url without being logged in to see if the cookie thing or url thing
+mattered, but I dont think it did as I could access the message url without entering
+any credentials even after I restarted my machine. I am not sure however since there 
+are session cookies still. I am going to try writing a python script that does
+all this and retrieves the data from each page so that I can automate rather than 
+brute forcing by hand.
+
+The script I made is basically supposed to go through the hashed number message
+urls of the first 50 (arbitrary, set by me, might need to bump it up) and output 
+the body portion of the web pages. There were some 404 not found pages so I had the
+program skip through those and store in a list. Heres the output of the program:
+
+
+"""
+<body>
+<div id="content">
+<h1>Secret message example</h1>
+<h3>From: admin</h3>
+<p></p><p>Our servers support sending secret messages between users.</p>
+<p>Using state-of-the-art, <strong>SHA3-256 encryption</strong>, we ensure that only the intended
+recipient can ever access your messages.</p>
+<p>Even better, because our technology is so safe, you can use it to send messages to people who
+don't even have accounts on the site. Simply write your message and copy the sharing link.
+Anyone with that can read the message, but no one would be able to guess it, even if they had
+a powerful supercomputer.</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Are secret messages actually secret?</h1>
+<h3>From: admin</h3>
+<p>People are telling me that the "encryption" used for these is only a hash
+of the post ID? Is that true? Wouldn't that make it quite easy for people
+to guess post IDs and read other people's messages?
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Are secret messages actually secret?</h1>
+<h3>From: admin</h3>
+<p>There's absolutely no way anyone can crack this. SHA-3 is FIPS PUB 202
+certified. It's definitely safe.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Happy 4th!</h1>
+<h3>From: admin</h3>
+<p>We're having a Pot Luck BBQ at the park before the fireworks.
+You should come by and bring your famous cookies!
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Happy 4th!</h1>
+<h3>From: admin</h3>
+<p>Thanks for inviting us! The fireworks were awesome!
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Pool Pass</h1>
+<h3>From: admin</h3>
+<p>We got some passes for the local pool. Your coupon
+code is SW4589.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Flag?</h1>
+<h3>From: dafan</h3>
+<p>Looking for the flag? It's not here, but you're
+on the right path.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Pool Pass</h1>
+<h3>From: admin</h3>
+<p>We got some passes for the local pool. Your coupon
+code is SW5789.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Pool Pass</h1>
+<h3>From: admin</h3>
+<p>We got some passes for the local pool. Your coupon
+code is SW6598.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Flag?</h1>
+<h3>From: dafan</h3>
+<p>There are quite a few messages. And this one still
+isn't the one with the flag. Hopefully you aren't
+doing this by hand?
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Pool Pass</h1>
+<h3>From: admin</h3>
+<p>There have been a lot of requests for more passes.
+We're working on a better solution for the summer.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Pool Pass</h1>
+<h3>From: admin</h3>
+<p>You can now get in free, with one guest, if you show
+your SecuWeb badge when paying admission.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Re: Flag?</h1>
+<h3>From: dafan</h3>
+<p>The flag? It starts with "CTF". But this still isn't
+the message with it.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Re: Pool Pass</h1>
+<h3>From: admin</h3>
+<p>You can now either bring one guest or your family
+(You, spouse, and any children).
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Re: Re: Flag?</h1>
+<h3>From: dafan</h3>
+<p>I wonder if the flag is associated with a really
+famous number. Maybe Douglas Adams's favorite
+number?
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>LEGO Sets</h1>
+<h3>From: admin</h3>
+<p>We're having an exchange for LEGO sets in the office
+this Friday.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Hackers Film</h1>
+<h3>From: admin</h3>
+<p>This Friday we're having a special showing of Hackers
+in the big conference room. Guests are permitted.
+We'll also have snacks set out for people.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Re: Re: Re: Flag?</h1>
+<h3>From: dafan</h3>
+<p>Getting close!
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>Re: Re: Re: Re: Flag?</h1>
+<h3>From: dafan</h3>
+<p>You're almost there! I bet the flag is in the
+very next message.
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+<body>
+<div id="content">
+<h1>A flag for you</h1>
+<h3>From: dafan</h3>
+<p>You decrypted the message! Congratulations!
+
+CTF{H4sh1ngIsNot3ncryp7ion}
+</p>
+</div>
+</body>
+
+        ________________________________
+        
+[[0, 404], [4, 404], [6, 404], [8, 404], [12, 404], [14, 404], [16, 404], [18, 404], [19, 404], [20, 404], [21, 404], [22, 404], [24, 404], [26, 404], [28, 404], [29, 404], [31, 404], [32, 404], [34, 404], [35, 404], [36, 404], [38, 404], [39, 404], [43, 404], [44, 404], [45, 404], [46, 404], [47, 404], [48, 404], [49, 404]]
+"""
+
+Some funny messages. Did not have to bump up the number, it seemed to have stoppped at 43
+
+CTF{H4sh1ngIsNot3ncryp7ion}
+
+This was fun.
